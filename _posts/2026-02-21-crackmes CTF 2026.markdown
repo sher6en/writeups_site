@@ -1,0 +1,9 @@
+---
+title: crackmes.one CTF 2026
+date: 2026-02-19 00:00:00 +0000
+categories: [ctf]
+tags: [reverse]
+description: Solutions to some challenges from the crackmes.one 2026 CTF
+---
+
+this is some rad text
