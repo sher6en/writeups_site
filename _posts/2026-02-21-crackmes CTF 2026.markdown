@@ -4,6 +4,34 @@ date: 2026-02-19 00:00:00 +0000
 categories: [ctf]
 tags: [reverse]
 description: Solutions to some challenges from the crackmes.one 2026 CTF
+media_subpath: \.\./assets/img/2026-02-21-crackmesoneCTF
 ---
 
-this is some rad text
+## Introduction
+
+Hello! I really like reversing and binary exploitation.
+
+For some time now I thought about starting a writeup site in order to share what I've been working on with other people, become better at articulating and reflecting on my thoughts (and, completely unrelatedly, improve my japanese[^japaneseFN]).
+
+I needed something to write about, and when I saw the crackmes.one CTF was happening soon I decided to do some of the easy challenges and explain my solutions. All that to say that the main focus of this post is for me to practice writing, so the content may not be very technically interesting (maybe for beginners?).
+
+I've done all of the easy challenges (CryptPad, FLRSCRNSVR, RecordPlayer) and one of the intermediate ones (Moment). I'll cover them in increasing level of difficulty (my ranking seems to align with how many people managed to solve each one) while focusing more on my thought process rather then a straight-to-the-point walkthrough.
+
+# TODO 紹介を書く。なんで中国語になってます？
+
+## Easy
+### CryptPad
+Opening the challenge folder we see and `cryptpad.exe` and `flag.enc` files. Given the name of the challenge and ending of `flag.enc` (short for encrypted?) I assumed `cryptpad.exe` is some sort of encrypter/decrypter and that we needed to reverse it in order to decrypt the flag - either by unlocking some decryption functionality or by reversing the encryption algorithm.
+
+Running the file we are met with a GUI containing a textbox and some menus:
+![cryptpad](cryptpad.png)
+When selecting "encrypt" we are prompted to choose a location for an `.enc` file (which presumably contains the encrypted contents of the textbox). While I didn't think about it too much during the challenge, encrypting the same text twice led to different output in the `.enc` file, which suggests that the encryption algorithm could be using time seeded random numbers (or some other time based value).
+
+Its not very suprising, but pressing the "decrypt" option doesn't decrypt the textbox, and instead pops an error informing us that this option isn't available:
+![decrypt error](decryptError.png)
+
+At this point I decided to open up `cryptpad.exe` in IDA (I'm using the free version of IDA 9.2). Note that I haven't reversed many applications with a GUI before and don't know exactly how they work (just enough intuitive understanding to accomplish what I'm trying to do) so take what is written here with a grain of salt (and if you found any mistakes, please let me know!).
+
+something something
+
+[^japaneseFN]: I've been studying japanese for a while now and recently started looking for a way to practice speaking; this seemed like a cool way to do it.
