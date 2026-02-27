@@ -40,7 +40,7 @@ Reading the MSDN entry for the function:
 Reading further still it seems the function recieves a single `WNDCLASSEXA` structure as parameter, which we should think about as containing data for the new window class.
 Looking at IDA and the `WNDCLASSEXA` definition in MSDN we can see the the class is initialized with the callback function `buttonHandlerFunction` (first red rectangle) and given the name `CryptPAD` (second red rectangle).
 This is probably the definition for the window that pops up when running the program, and we should now go look at the `buttonHandlerFunction` to see what happens when pressing the encrypt/decrypt buttons! Before that, just as a sanity check we expect to see a call to `CreateWindowEx` with the `CryptPAD` class name to actually create the window. And indeed:
-![creating cryptpad window](CreateWindow.png)
+![creating cryptpad window](createWindow.png)
 When the `buttonHandlerFunction` function is called as a callback to a button getting pressed it gets arguments according to the prototype `WNDPROC` (this should be the type of the function passed as a callback in `WNDCLASSEXA`). In particular it gets `Msg`, `wParam`, and `lParam` arguments which can be used to infer what button in the GUI caused the callback (I infered this empirically running the program under a debugger and looking at IDA):
 ![callback parameters switchcase](callbackFunctionSwitch.png)  
 We can now either look for the path which corresponds to a decrypt/encrypt press (for example, by looking for the text from the decrypt "This option is..." message box), or running the program under the debugger and following it after pressing each button. In any case we get to the decrypt function and see:
