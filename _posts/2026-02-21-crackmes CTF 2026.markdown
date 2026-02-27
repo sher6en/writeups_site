@@ -4,7 +4,7 @@ date: 2026-02-27 00:00:00 +0000
 categories: [ctf]
 tags: [reverse]
 description: Solutions to some challenges from the crackmes.one 2026 CTF
-media_subpath: /\.\./assets/img/2026-02-21-crackmesoneCTF
+media_subpath: /assets/img/2026-02-21-crackmesoneCTF
 ---
 
 ## Introduction
