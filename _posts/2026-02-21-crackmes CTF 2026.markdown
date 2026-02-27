@@ -17,7 +17,7 @@ I needed something to write about, and when I saw the crackmes.one CTF was happe
 
 I've done all of the easy challenges (CryptPad, FLRSCRNSVR, RecordPlayer) and one of the intermediate ones (Moment). I'll cover them in increasing level of difficulty (my ranking seems to align with how many people managed to solve each one) while focusing more on my thought process rather then a straight-to-the-point walkthrough.
 
-# TODO 紹介を書く。なんで中国語になってます？
+# TODO 紹介を書く。なんで中国語になってる？
 
 ## Easy
 ### CryptPad
@@ -32,6 +32,95 @@ Its not very suprising, but pressing the "decrypt" option doesn't decrypt the te
 
 At this point I decided to open up `cryptpad.exe` in IDA (I'm using the free version of IDA 9.2). Note that I haven't reversed many applications with a GUI before and don't know exactly how they work (just enough intuitive understanding to accomplish what I'm trying to do) so take what is written here with a grain of salt (and if you found any mistakes, please let me know!).
 
-something something
+The code immediately proceding the entry point has lots of initialization and then a call to a "RegisterClassExA" function (lowest red rectangle, we'll talk about the other 2 in a second):
+![initializing window class](registerWindowClass.png)
+Reading the MSDN entry for the function:
+> Registers a window class for subsequent use in calls to the CreateWindow or `CreateWindowEx` function.
+
+Reading further still it seems the function recieves a single `WNDCLASSEXA` structure as parameter, which we should think about as containing data for the new window class.
+Looking at IDA and the `WNDCLASSEXA` definition in MSDN we can see the the class is initialized with the callback function `buttonHandlerFunction` (first red rectangle) and given the name `CryptPAD` (second red rectangle).
+This is probably the definition for the window that pops up when running the program, and we should now go look at the `buttonHandlerFunction` to see what happens when pressing the encrypt/decrypt buttons! Before that, just as a sanity check we expect to see a call to `CreateWindowEx` with the `CryptPAD` class name to actually create the window. And indeed:
+![creating cryptpad window](CreateWindow.png)
+When the `buttonHandlerFunction` function is called as a callback to a button getting pressed it gets arguments according to the prototype `WNDPROC` (this should be the type of the function passed as a callback in `WNDCLASSEXA`). In particular it gets `Msg`, `wParam`, and `lParam` arguments which can be used to infer what button in the GUI caused the callback (I infered this empirically running the program under a debugger and looking at IDA):
+![callback parameters switchcase](callbackFunctionSwitch.png)  
+We can now either look for the path which corresponds to a decrypt/encrypt press (for example, by looking for the text from the decrypt "This option is..." message box), or running the program under the debugger and following it after pressing each button. In any case we get to the decrypt function and see:
+![decrypt unavailable](decryptUnavailable.png)
+Well, seems like the "decryption logic is in the code and we just need to satisfy some condition to unlock it" option is out of the window (assuming the logic isn't somewhere else; seeing as this should be the easiest challenge in the CTF, my intuition is that this isn't the case). We turn to the encryption path, ready to reverse its logic.
+
+The encryption function is longer then the others we've seen, so I'm going to use the decompiler feature (verifying the assembly if something seems off). 
+
+The function start by calling `GetWindowTextLength` (1) which by running with a debugger returns the length of the input text in the main window block (the `dword_4024D1` variable is initialized somewhere in `buttonHandlerFunction`, I didn't bother to understand exactly what was happening). It then creates a buffer that size, aligned to 64 bytes (2) filling it with the input text and then random bytes (4), and creates a file at a path we select after pressing the encryption button (3) (`path` is also initialized in `buttonHandlerFunction`). We'll look at `genRandomNumber` at the end, its really short:
+![main encryption function](encryptionMain.png)
+It then goes on the generate a 8 byte long random number into a global variable (which I named key), and calls another function (which does the actualy encryption) passing it the input buffer.
+
+The encrytion can be thought of as a composition of a couple of transformations/stages, so we'll cover each one of them in order.
+##### Stage 1
+We start by xoring each character in the input with the corresponding character in the key (repeating the key if the input is longer than the key length \[8]):
+![encryption stage 1](encryptionStage1.png)
+##### Stage 2
+The function proceeds to initialized a 256 element array with `arr[i]=i` and another array with `keyRepeating[i]=key[i%len(key)]` (this is just a shortcut for not doing the calculation `i%len(key)` later). It then uses the arrays in a very familiar fashion (can you guess what is happening here?):
+![encryption stage 2](encryptionStage2.png)
+This is just RC4 initialization! (the key used is the same key from before). And we can confirm the RC4 bytestream is xored with the input just after that:
+![encryption stage 2 - rc4 xor](encryptionStage2Rc4Xor.png)
+##### Stage 3
+Stage 3 is just the same as stage 1:
+![encryption stage 3](encryptionStage3.png)
+
+##### Stage 4
+Finally, the code copies the message length (as a 4 byte int) to bytes `-13` to `-10` (byte `-n` means n bytes before the end), the key to bytes `-9` to `-1`, and changes to last byte to `0x8`:
+![encryption stage 4](encryptionStage4.png)
+
+##### Recovery
+Now that we understand how the decryption algorithm works we can recover the flag - thanks to stage 4 we can extract the key and message length, and then do the inverse of the encryption on the encrypted message (I chose to implement it in a python script). 
+The encryption is
+
+`cyclic XOR -> RC4 encryption -> cyclic XOR`
+
+
+so the decryption will be
+
+`(message length and key recovery from end of buffer ->) cyclic XOR -> RC4 encryption -> cyclic XOR`
+
+And in a python script:
+
+```python
+import sys
+from arc4 import ARC4
+
+encryptedFilePath = sys.argv[1]
+encryptedFile = open(encryptedFilePath, "rb")
+encryptedFileContents = encryptedFile.read()
+
+key = encryptedFileContents[-9:-1] #key
+messageLength = int.from_bytes(encryptedFileContents[-13:-9], 'little') #message length
+encryptedMessage = encryptedFileContents[:messageLength] #actual message
+
+print("Parsed key, message, messageLen:", key.hex(), encryptedMessage.hex(), messageLength)
+
+outputStage1 = b""
+#stage 1: cyclic encMessage xor key
+for k in range(messageLength):
+    curByte = encryptedMessage[k] ^ key[k%8]
+    outputStage1 += curByte.to_bytes(1, "little")
+
+print("Output after reversing stage 1:", outputStage1.hex())
+
+#stage 2: rc4(key) ^ message (bitwise xor)
+arc4 = ARC4(key)
+outputStage2 = arc4.decrypt(outputStage1)
+
+print("Output after reversing stage 2:", outputStage2.hex())
+
+#stage 3: cyclic encMessage xor key (again)
+outputStage3 = b""
+for k in range(messageLength):
+    curByte = outputStage2[k] ^ key[k%8]
+    outputStage3 += curByte.to_bytes(1, "little")
+
+print("Output after reversing stage 3:", outputStage3.decode('ascii'))
+```
+
+Running the script on `flag.enc` file we get the original flag: 
+![the recovred flag](flagRecovered.png)
 
 [^japaneseFN]: I've been studying japanese for a while now and recently started looking for a way to practice speaking; this seemed like a cool way to do it.
