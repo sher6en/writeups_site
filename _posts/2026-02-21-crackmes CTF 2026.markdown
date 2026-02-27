@@ -49,10 +49,13 @@ Well, seems like the "decryption logic is in the code and we just need to satisf
 
 The encryption function is longer then the others we've seen, so I'm going to use the decompiler feature (verifying the assembly if something seems off). 
 
-The function start by calling `GetWindowTextLength` (1) which by running with a debugger returns the length of the input text in the main window block (the `dword_4024D1` variable is initialized somewhere in `buttonHandlerFunction`, I didn't bother to understand exactly what was happening). It then creates a buffer that size, aligned to 64 bytes (2) filling it with the input text and then random bytes (4), and creates a file at a path we select after pressing the encryption button (3) (`path` is also initialized in `buttonHandlerFunction`). We'll look at `genRandomNumber` at the end, its really short:
+The function start by calling `GetWindowTextLength` (1) which by running with a debugger returns the length of the input text in the main window block (the `dword_4024D1` variable is initialized somewhere in `buttonHandlerFunction`, I didn't bother to understand exactly what was happening). It then creates a buffer that size, aligned to 64 bytes (2) filling it with the input text and then random bytes (4), and creates a file at a path we select after pressing the encryption button (3) (`path` is also initialized in `buttonHandlerFunction`). We'll look at `genRandomNumber` in the next paragraph, its really short:
 ![main encryption function](encryptionMain.png)
-It then goes on the generate a 8 byte long random number into a global variable (which I named key), and calls another function (which does the actualy encryption) passing it the input buffer.
+It then goes on the generate a 8 byte long random number into a global variable (which I named `key`), and calls another function (which does the actualy encryption) passing it the input buffer.
 
+As for `genRandomNumber`, it's just a wrapper to a function called `SystemFunction036` (from `advapi.dll`). Looking it up in google says that it calls just `RtlGenRandom`, which generates and writes `RandomBufferLength` random bytes starting at address `RandomBuffer`:
+![genRandomNumber function](genRandomNumber.png)
+##### Encryption logic
 The encrytion can be thought of as a composition of a couple of transformations/stages, so we'll cover each one of them in order.
 ##### Stage 1
 We start by xoring each character in the input with the corresponding character in the key (repeating the key if the input is longer than the key length \[8]):
